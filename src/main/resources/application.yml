@@ -1,6 +1,10 @@
 spring:
   application:
     name: payment-gateway
+  http:
+    client:
+      connect-timeout: 2s
+      read-timeout: 5s
 
 server:
   port: 8090
@@ -13,3 +17,6 @@ springdoc:
 
 payment:
   supported-currencies: EUR, GBP, USD
+
+acquiring-bank:
+  url: http://localhost:8080/payments
