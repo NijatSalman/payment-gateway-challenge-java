@@ -1,7 +1,7 @@
 package com.checkout.payment.gateway.service;
 
 import com.checkout.payment.gateway.domain.Payment;
-import com.checkout.payment.gateway.exception.EventProcessingException;
+import com.checkout.payment.gateway.exception.PaymentNotFoundException;
 import com.checkout.payment.gateway.model.PostPaymentRequest;
 import com.checkout.payment.gateway.repository.PaymentsRepository;
 import java.util.UUID;
@@ -21,9 +21,9 @@ public class PaymentGatewayService {
   }
 
   public Payment getPaymentById(UUID id) {
-    LOG.debug("Retrieving payment with id {}", id);
+    LOG.debug("Payment retrieval requested: paymentId={}", id);
     return paymentsRepository.findById(id)
-        .orElseThrow(() -> new EventProcessingException("Invalid ID"));
+        .orElseThrow(() -> new PaymentNotFoundException(id));
   }
 
   public Payment processPayment(PostPaymentRequest paymentRequest) {
