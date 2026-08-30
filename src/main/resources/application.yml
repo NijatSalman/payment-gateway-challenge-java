@@ -10,3 +10,6 @@ springdoc:
     enabled: true
   api-docs:
     enabled: true
+
+payment:
+  supported-currencies: EUR, GBP, USD
