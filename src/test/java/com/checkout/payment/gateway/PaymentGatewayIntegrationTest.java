@@ -3,6 +3,7 @@ package com.checkout.payment.gateway;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.ExpectedCount.once;
+import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServiceUnavailable;
@@ -108,7 +109,7 @@ class PaymentGatewayIntegrationTest {
 
   @Test
   void whenBankIsUnavailableThenServiceUnavailableIsReturned() throws Exception {
-    bank.expect(once(), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
+    bank.expect(times(3), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
 
     mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(VALID_REQUEST))
         .andExpect(status().isServiceUnavailable())

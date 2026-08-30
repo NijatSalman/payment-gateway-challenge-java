@@ -1,7 +1,11 @@
 package com.checkout.payment.gateway.client;
 
 import com.checkout.payment.gateway.exception.BankCommunicationException;
+import com.checkout.payment.gateway.exception.BankTimeoutException;
 import com.checkout.payment.gateway.exception.BankUnavailableException;
+import io.github.resilience4j.retry.annotation.Retry;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -18,6 +22,8 @@ public class AcquiringBankClient {
     this.restClient = acquiringBankRestClient;
   }
 
+  /** Retried while the bank is unavailable (see {@code resilience4j.retry} configuration). */
+  @Retry(name = "acquiringBank")
   public BankPaymentResponse authorize(BankPaymentRequest request) {
     try {
       return restClient.post()
@@ -33,7 +39,16 @@ public class AcquiringBankClient {
           })
           .body(BankPaymentResponse.class);
     } catch (ResourceAccessException ex) {
+      if (isReadTimeout(ex)) {
+        throw new BankTimeoutException("Acquiring bank did not respond in time", ex);
+      }
       throw new BankUnavailableException("Acquiring bank unreachable", ex);
     }
+  }
+
+  /** A timeout after the request was sent; a connect timeout means it never left. */
+  private static boolean isReadTimeout(ResourceAccessException ex) {
+    Throwable cause = ex.getCause();
+    return cause instanceof HttpTimeoutException && !(cause instanceof HttpConnectTimeoutException);
   }
 }
