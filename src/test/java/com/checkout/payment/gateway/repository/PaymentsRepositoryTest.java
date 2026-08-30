@@ -13,7 +13,7 @@ class PaymentsRepositoryTest {
   private final PaymentsRepository repository = new PaymentsRepository();
 
   @Test
-  void savedPaymentCanBeFoundById() {
+  void whenPaymentIsSavedThenItCanBeFoundById() {
     Payment payment = payment(UUID.randomUUID(), PaymentStatus.AUTHORIZED);
 
     repository.save(payment);
@@ -22,12 +22,12 @@ class PaymentsRepositoryTest {
   }
 
   @Test
-  void unknownIdReturnsEmpty() {
+  void whenIdIsUnknownThenEmptyIsReturned() {
     assertThat(repository.findById(UUID.randomUUID())).isEmpty();
   }
 
   @Test
-  void savingSameIdAgainKeepsLatestPayment() {
+  void whenSameIdIsSavedAgainThenLatestPaymentIsKept() {
     UUID id = UUID.randomUUID();
     repository.save(payment(id, PaymentStatus.AUTHORIZED));
     Payment latest = payment(id, PaymentStatus.DECLINED);

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,6 +18,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class CommonExceptionHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(CommonExceptionHandler.class);
+  private static final String RETRY_AFTER_SECONDS = "30";
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ErrorResponse> handleInvalidRequest(MethodArgumentNotValidException ex) {
@@ -41,6 +43,20 @@ public class CommonExceptionHandler {
   public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
     LOG.info("Invalid request parameter: parameter={}", ex.getName());
     return error(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + ex.getName() + "'");
+  }
+
+  @ExceptionHandler(BankUnavailableException.class)
+  public ResponseEntity<ErrorResponse> handleBankUnavailable(BankUnavailableException ex) {
+    LOG.warn("Acquiring bank unavailable: reason={}", ex.getMessage());
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
+        .body(ErrorResponse.of("Acquiring bank unavailable, please retry later"));
+  }
+
+  @ExceptionHandler(BankCommunicationException.class)
+  public ResponseEntity<ErrorResponse> handleBankCommunication(BankCommunicationException ex) {
+    LOG.error("Unexpected acquiring bank response: reason={}", ex.getMessage());
+    return error(HttpStatus.BAD_GATEWAY, "Unexpected response from acquiring bank");
   }
 
   private static ResponseEntity<ErrorResponse> rejected(List<FieldError> errors) {

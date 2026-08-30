@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class BankPaymentRequestTest {
 
   @Test
-  void mapsPaymentRequestAndZeroPadsExpiryMonth() {
+  void whenMappedFromPaymentRequestThenExpiryMonthIsZeroPadded() {
     BankPaymentRequest request =
         BankPaymentRequest.from(new PaymentRequest("2222405343248877", 4, 2030, "GBP", 100L, "123"));
 
@@ -17,7 +17,7 @@ class BankPaymentRequestTest {
   }
 
   @Test
-  void keepsTwoDigitExpiryMonth() {
+  void whenExpiryMonthHasTwoDigitsThenItIsKept() {
     BankPaymentRequest request =
         BankPaymentRequest.from(new PaymentRequest("2222405343248877", 12, 2030, "GBP", 100L, "123"));
 
@@ -25,7 +25,7 @@ class BankPaymentRequestTest {
   }
 
   @Test
-  void toStringMasksCardNumberAndCvv() {
+  void whenPrintedThenCardNumberAndCvvAreMasked() {
     String text = new BankPaymentRequest("2222405343248877", "04/2030", "GBP", 100, "123").toString();
 
     assertThat(text)

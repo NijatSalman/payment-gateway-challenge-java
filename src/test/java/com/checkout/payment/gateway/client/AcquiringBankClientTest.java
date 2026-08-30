@@ -40,7 +40,7 @@ class AcquiringBankClientTest {
   private MockRestServiceServer server;
 
   @Test
-  void sendsBankContractAndReturnsAuthorizedResponse() {
+  void whenBankAuthorizesThenAuthorizedResponseIsReturned() {
     server.expect(requestTo(BANK_URL))
         .andExpect(method(POST))
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -57,7 +57,7 @@ class AcquiringBankClientTest {
   }
 
   @Test
-  void returnsDeclinedResponse() {
+  void whenBankDeclinesThenDeclinedResponseIsReturned() {
     server.expect(requestTo(BANK_URL))
         .andRespond(withSuccess("{\"authorized\":false,\"authorization_code\":\"\"}",
             MediaType.APPLICATION_JSON));
@@ -69,7 +69,7 @@ class AcquiringBankClientTest {
   }
 
   @Test
-  void serviceUnavailableIsReportedAsBankUnavailable() {
+  void whenBankRespondsWith503ThenBankUnavailableIsThrown() {
     server.expect(requestTo(BANK_URL)).andRespond(withServiceUnavailable());
 
     assertThatThrownBy(() -> client.authorize(REQUEST))
@@ -78,7 +78,7 @@ class AcquiringBankClientTest {
   }
 
   @Test
-  void badRequestIsReportedAsCommunicationFailure() {
+  void whenBankRespondsWith400ThenCommunicationFailureIsThrown() {
     server.expect(requestTo(BANK_URL)).andRespond(withBadRequest());
 
     assertThatThrownBy(() -> client.authorize(REQUEST))
@@ -87,7 +87,7 @@ class AcquiringBankClientTest {
   }
 
   @Test
-  void serverErrorIsReportedAsCommunicationFailure() {
+  void whenBankRespondsWith500ThenCommunicationFailureIsThrown() {
     server.expect(requestTo(BANK_URL)).andRespond(withServerError());
 
     assertThatThrownBy(() -> client.authorize(REQUEST))
@@ -96,7 +96,7 @@ class AcquiringBankClientTest {
   }
 
   @Test
-  void unreachableBankIsReportedAsBankUnavailable() {
+  void whenBankIsUnreachableThenBankUnavailableIsThrown() {
     AcquiringBankClient unreachableClient =
         new AcquiringBankClient(RestClient.builder().baseUrl("http://localhost:1").build());
 

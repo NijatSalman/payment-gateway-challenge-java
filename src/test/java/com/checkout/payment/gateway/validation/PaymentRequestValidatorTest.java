@@ -22,18 +22,18 @@ class PaymentRequestValidatorTest {
       new PaymentRequestValidator(FIXED_CLOCK, new PaymentProperties(Set.of("USD", "EUR", "GBP")));
 
   @Test
-  void cardExpiringInCurrentMonthIsValid() {
+  void whenCardExpiresInCurrentMonthThenRequestIsValid() {
     assertThatCode(() -> validator.validate(request(8, 2026, "GBP"))).doesNotThrowAnyException();
   }
 
   @Test
-  void cardExpiringInFutureIsValid() {
+  void whenCardExpiresInFutureThenRequestIsValid() {
     assertThatCode(() -> validator.validate(request(9, 2026, "GBP"))).doesNotThrowAnyException();
     assertThatCode(() -> validator.validate(request(1, 2027, "GBP"))).doesNotThrowAnyException();
   }
 
   @Test
-  void cardExpiredLastMonthIsRejected() {
+  void whenCardExpiredLastMonthThenRequestIsRejected() {
     assertThatThrownBy(() -> validator.validate(request(7, 2026, "GBP")))
         .isInstanceOf(PaymentValidationException.class)
         .extracting(ex -> ((PaymentValidationException) ex).getErrors())
@@ -41,7 +41,7 @@ class PaymentRequestValidatorTest {
   }
 
   @Test
-  void unsupportedCurrencyIsRejected() {
+  void whenCurrencyIsUnsupportedThenRequestIsRejected() {
     assertThatThrownBy(() -> validator.validate(request(12, 2030, "XYZ")))
         .isInstanceOf(PaymentValidationException.class)
         .extracting(ex -> ((PaymentValidationException) ex).getErrors())
@@ -49,13 +49,13 @@ class PaymentRequestValidatorTest {
   }
 
   @Test
-  void lowercaseCurrencyIsRejected() {
+  void whenCurrencyIsLowercaseThenRequestIsRejected() {
     assertThatThrownBy(() -> validator.validate(request(12, 2030, "gbp")))
         .isInstanceOf(PaymentValidationException.class);
   }
 
   @Test
-  void allBusinessRuleViolationsAreReportedTogether() {
+  void whenSeveralRulesFailThenAllErrorsAreReported() {
     assertThatThrownBy(() -> validator.validate(request(7, 2026, "XYZ")))
         .isInstanceOf(PaymentValidationException.class)
         .extracting(ex -> ((PaymentValidationException) ex).getErrors())

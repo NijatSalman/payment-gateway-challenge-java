@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 class PaymentRequestTest {
 
   @Test
-  void toStringMasksCardNumberAndCvv() {
+  void whenPrintedThenCardNumberAndCvvAreMasked() {
     PaymentRequest request =
         new PaymentRequest("2222405343248877", 4, 2030, "GBP", 100L, "123");
 
@@ -21,7 +21,7 @@ class PaymentRequestTest {
   }
 
   @Test
-  void toStringHandlesMissingCardData() {
+  void whenCardDataIsMissingThenPrintingDoesNotFail() {
     PaymentRequest request = new PaymentRequest(null, 4, 2030, "GBP", 100L, null);
 
     assertThat(request.toString()).contains("cardNumber=null").contains("cvv=null");
