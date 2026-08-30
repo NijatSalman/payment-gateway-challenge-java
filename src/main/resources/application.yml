@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: payment-gateway
+
+server:
+  port: 8090
+
+springdoc:
+  swagger-ui:
+    enabled: true
+  api-docs:
+    enabled: true
