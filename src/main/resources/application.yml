@@ -20,3 +20,14 @@ payment:
 
 acquiring-bank:
   url: http://localhost:8080/payments
+
+resilience4j:
+  retry:
+    instances:
+      acquiringBank:
+        max-attempts: 3
+        wait-duration: 200ms
+        retry-exceptions:
+          - com.checkout.payment.gateway.exception.BankUnavailableException
+        ignore-exceptions:
+          - com.checkout.payment.gateway.exception.BankTimeoutException

@@ -3,6 +3,7 @@ package com.checkout.payment.gateway;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.ExpectedCount.once;
+import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServiceUnavailable;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import java.net.http.HttpTimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * Runs the real application end to end; only the acquiring bank's HTTP endpoint is replaced by a
  * scripted server.
  */
-@SpringBootTest
+@SpringBootTest(properties = "resilience4j.retry.instances.acquiringBank.wait-duration=0ms")
 @AutoConfigureMockMvc
 @AutoConfigureMockRestServiceServer
 class PaymentGatewayIntegrationTest {
@@ -107,22 +109,49 @@ class PaymentGatewayIntegrationTest {
   }
 
   @Test
-  void whenBankIsUnavailableThenServiceUnavailableIsReturned() throws Exception {
-    bank.expect(once(), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
+  void whenBankStaysUnavailableThenRetriesAreExhaustedAndServiceUnavailableIsReturned()
+      throws Exception {
+    bank.expect(times(3), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
 
     mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(VALID_REQUEST))
         .andExpect(status().isServiceUnavailable())
         .andExpect(header().string("Retry-After", "30"))
         .andExpect(jsonPath("$.message").value("Acquiring bank unavailable, please retry later"));
+    bank.verify();
   }
 
   @Test
-  void whenBankRespondsUnexpectedlyThenBadGatewayIsReturned() throws Exception {
+  void whenBankRecoversWithinRetriesThenPaymentIsAuthorized() throws Exception {
+    bank.expect(times(2), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
+    bank.expect(once(), requestTo(BANK_URL))
+        .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));
+
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(VALID_REQUEST))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("Authorized"));
+    bank.verify();
+  }
+
+  @Test
+  void whenBankTimesOutThenBankIsNotRetried() throws Exception {
+    bank.expect(once(), requestTo(BANK_URL)).andRespond(request -> {
+      throw new HttpTimeoutException("read timed out");
+    });
+
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(VALID_REQUEST))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(header().string("Retry-After", "30"));
+    bank.verify();
+  }
+
+  @Test
+  void whenBankRespondsUnexpectedlyThenBadGatewayIsReturnedWithoutRetry() throws Exception {
     bank.expect(once(), requestTo(BANK_URL)).andRespond(withBadRequest());
 
     mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(VALID_REQUEST))
         .andExpect(status().isBadGateway())
         .andExpect(jsonPath("$.message").value("Unexpected response from acquiring bank"));
+    bank.verify();
   }
 
   @Test
