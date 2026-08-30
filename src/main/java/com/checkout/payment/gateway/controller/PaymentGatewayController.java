@@ -1,8 +1,8 @@
 package com.checkout.payment.gateway.controller;
 
 import com.checkout.payment.gateway.domain.Payment;
+import com.checkout.payment.gateway.model.PaymentRequest;
 import com.checkout.payment.gateway.model.PaymentResponse;
-import com.checkout.payment.gateway.model.PostPaymentRequest;
 import com.checkout.payment.gateway.service.PaymentGatewayService;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -28,7 +28,7 @@ public class PaymentGatewayController {
 
   @PostMapping
   public ResponseEntity<PaymentResponse> processPayment(
-      @Valid @RequestBody PostPaymentRequest request) {
+      @Valid @RequestBody PaymentRequest request) {
     Payment payment = paymentGatewayService.processPayment(request);
     URI location = ServletUriComponentsBuilder.fromCurrentRequest()
         .path("/{id}")

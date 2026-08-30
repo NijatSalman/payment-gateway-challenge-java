@@ -2,7 +2,7 @@ package com.checkout.payment.gateway.service;
 
 import com.checkout.payment.gateway.domain.Payment;
 import com.checkout.payment.gateway.exception.PaymentNotFoundException;
-import com.checkout.payment.gateway.model.PostPaymentRequest;
+import com.checkout.payment.gateway.model.PaymentRequest;
 import com.checkout.payment.gateway.repository.PaymentsRepository;
 import com.checkout.payment.gateway.validation.PaymentRequestValidator;
 import java.util.UUID;
@@ -30,7 +30,7 @@ public class PaymentGatewayService {
         .orElseThrow(() -> new PaymentNotFoundException(id));
   }
 
-  public Payment processPayment(PostPaymentRequest paymentRequest) {
+  public Payment processPayment(PaymentRequest paymentRequest) {
     paymentRequestValidator.validate(paymentRequest);
     throw new UnsupportedOperationException("Payment processing is not implemented yet");
   }

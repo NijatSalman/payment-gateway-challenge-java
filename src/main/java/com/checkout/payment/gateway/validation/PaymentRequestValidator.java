@@ -3,7 +3,7 @@ package com.checkout.payment.gateway.validation;
 import com.checkout.payment.gateway.configuration.PaymentProperties;
 import com.checkout.payment.gateway.exception.PaymentValidationException;
 import com.checkout.payment.gateway.model.FieldError;
-import com.checkout.payment.gateway.model.PostPaymentRequest;
+import com.checkout.payment.gateway.model.PaymentRequest;
 import java.time.Clock;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Business rules that go beyond the per-field format constraints declared on
- * {@link PostPaymentRequest}. A card is considered valid until the last day of its expiry month.
+ * {@link PaymentRequest}. A card is considered valid until the last day of its expiry month.
  */
 @Component
 public class PaymentRequestValidator {
@@ -25,7 +25,7 @@ public class PaymentRequestValidator {
     this.paymentProperties = paymentProperties;
   }
 
-  public void validate(PostPaymentRequest request) {
+  public void validate(PaymentRequest request) {
     List<FieldError> errors = new ArrayList<>();
     if (!paymentProperties.supportedCurrencies().contains(request.currency())) {
       errors.add(new FieldError("currency", "is not supported"));
