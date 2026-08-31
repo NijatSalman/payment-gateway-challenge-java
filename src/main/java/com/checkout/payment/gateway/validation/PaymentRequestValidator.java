@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class PaymentRequestValidator {
 
+  private static final String IDEMPOTENCY_KEY_PATTERN = "^[A-Za-z0-9_-]{1,255}$";
+
   private final Clock clock;
   private final PaymentProperties paymentProperties;
 
@@ -24,8 +26,6 @@ public class PaymentRequestValidator {
     this.clock = clock;
     this.paymentProperties = paymentProperties;
   }
-
-  private static final String IDEMPOTENCY_KEY_PATTERN = "^[A-Za-z0-9_-]{1,255}$";
 
   public void validate(PaymentRequest request) {
     List<FieldError> errors = new ArrayList<>();
