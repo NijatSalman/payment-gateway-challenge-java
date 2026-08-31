@@ -1,41 +1,71 @@
 # Payment Gateway
 
-A payment gateway API that lets a merchant process card payments through an acquiring bank and
-retrieve them later — the [Checkout.com engineering challenge](https://github.com/cko-recruitment/).
+A payment gateway API for the [Checkout.com engineering challenge](https://github.com/cko-recruitment/):
+a merchant submits a card payment, the gateway **validates** it, forwards it to the **acquiring
+bank**, **stores** the outcome and lets the merchant **retrieve** it later. Three outcomes exist —
+`Authorized` / `Declined` (the bank's answer) and `Rejected` (invalid request, bank never called).
 
 ```
 Merchant ──HTTP──▶ Payment Gateway ──HTTP──▶ Acquiring Bank (simulator)
                    validate → authorize → store → respond
 ```
 
-## Requirements
+## 🧰 Technology choices
 
-- JDK 17
-- Docker (for the bank simulator and the optional end-to-end tests)
+| Technology | Version | Why |
+|---|---|---|
+| Java | 17 | required by the challenge brief; a supported LTS |
+| Spring Boot | 3.5.16 | the starter shipped end-of-life 3.1.5; 3.5 is the latest maintained release of the same generation — security patches with a two-line migration (4.x would be a real migration for no functional gain here) |
+| Spring Web + `RestClient` | managed | `RestTemplate` is in maintenance mode; the auto-configured builder adds tracing propagation and HTTP client metrics for free |
+| Bean Validation | managed | declarative per-field format rules on the request record |
+| Resilience4j | 2.4.0 | bounded retry towards the bank, configured in YAML |
+| Micrometer Tracing (Brave) | managed | `traceId`/`spanId` in every log line, W3C `traceparent` propagated to the bank |
+| springdoc-openapi | 2.8.17 | Swagger UI generated from the code, with documented error responses |
+| JUnit 5, AssertJ, MockMvc, `MockRestServiceServer` | managed | one toolkit for all tests; the bank is the only thing ever faked |
+| Testcontainers + Mountebank | managed / 2.8.1 | opt-in end-to-end tests against the challenge's real bank simulator |
 
-## Running
+## 🚀 Getting started
 
 ```bash
-docker compose up -d        # 1. start the bank simulator (port 8080)
-./gradlew bootRun           # 2. start the gateway (port 8090)
+# 1. start the acquiring-bank simulator (port 8080)
+docker compose up -d
+
+# 2. run the gateway (port 8090)
+./gradlew bootRun
+
+# 3. try a payment
+curl -X POST localhost:8090/api/v1/payments -H 'Content-Type: application/json' -d '{
+  "card_number": "2222405343248871",
+  "expiry_month": 4, "expiry_year": 2030,
+  "currency": "GBP", "amount": 1050, "cvv": "123"
+}'
 ```
 
-- Swagger UI: http://localhost:8090/swagger-ui/index.html (full API reference with valid examples)
+- Swagger UI: http://localhost:8090/swagger-ui/index.html
 - Health: http://localhost:8090/actuator/health
 
-> Gradle must run on JDK 17–24. If your default `java` is newer:
+> Gradle must run on JDK 17–24; if your default `java` is newer:
 > `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew bootRun` (macOS).
-> If port 8090 is taken by something else, free it first — the port is part of the challenge setup.
+> Port 8090 must be free — it is part of the challenge setup.
 
-## Testing
+### 💳 Test cards
+
+The simulator decides by the card number's **last digit**:
+
+| Last digit | Bank behaviour | Gateway result |
+|---|---|---|
+| odd (1, 3, 5, 7, 9) | authorizes | `201` — `Authorized` |
+| even (2, 4, 6, 8) | declines | `201` — `Declined` |
+| 0 | unavailable (503) | `503` + `Retry-After` |
+
+## 🧪 Testing
 
 ```bash
 ./gradlew test       # unit, slice and integration tests — no Docker needed
 ./gradlew e2eTest    # end-to-end tests against the real bank simulator — needs Docker
 ```
 
-The e2e tests start the challenge's own Mountebank simulator via Testcontainers, so `build` stays
-hermetic and CI can run the two suites as separate jobs (see `.github/workflows/build.yml`).
+CI (`.github/workflows/build.yml`) runs both on every pull request.
 
 | Layer | Tooling | Covers |
 |---|---|---|
@@ -46,44 +76,7 @@ hermetic and CI can run the two suites as separate jobs (see `.github/workflows/
 
 The bank is the only thing ever faked; each behaviour is asserted at exactly one layer.
 
-## API
-
-| Method | Path | Success | Errors |
-|---|---|---|---|
-| `POST` | `/api/v1/payments` | `201 Created` + `Location` | `400` rejected, `422` idempotency conflict, `502` bank contract error, `503` bank unavailable |
-| `GET` | `/api/v1/payments/{id}` | `200 OK` | `400` invalid id, `404` unknown id |
-
-### Process a payment
-
-```bash
-curl -X POST localhost:8090/api/v1/payments -H 'Content-Type: application/json' -d '{
-  "card_number": "2222405343248871",
-  "expiry_month": 4,
-  "expiry_year": 2030,
-  "currency": "GBP",
-  "amount": 1050,
-  "cvv": "123"
-}'
-```
-
-```json
-HTTP/1.1 201 Created
-Location: http://localhost:8090/api/v1/payments/6f1c0a3e-...
-{
-  "id": "6f1c0a3e-...",
-  "status": "Authorized",
-  "card_number_last_four": "8871",
-  "expiry_month": 4,
-  "expiry_year": 2030,
-  "currency": "GBP",
-  "amount": 1050
-}
-```
-
-A payment that the bank **declines** is still `201 Created` with `"status": "Declined"` — the
-resource was created; the bank's decision is data, not an HTTP failure.
-
-### Payment flow
+## 🗺️ How a payment flows
 
 ```mermaid
 sequenceDiagram
@@ -112,8 +105,31 @@ sequenceDiagram
     G-->>M: 200 payment details (masked card)
 ```
 
-**Test cards** (the simulator decides by the last digit): odd → `Authorized`, even → `Declined`,
-`0` → bank unavailable (gateway returns `503`).
+## 📚 API
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| `POST` | `/api/v1/payments` | `201 Created` + `Location` | `400` rejected, `422` idempotency conflict, `502` bank contract error, `503` bank unavailable |
+| `GET` | `/api/v1/payments/{id}` | `200 OK` | `400` invalid id, `404` unknown id |
+
+### Successful payment
+
+```json
+HTTP/1.1 201 Created
+Location: http://localhost:8090/api/v1/payments/6f1c0a3e-...
+{
+  "id": "6f1c0a3e-...",
+  "status": "Authorized",
+  "card_number_last_four": "8871",
+  "expiry_month": 4,
+  "expiry_year": 2030,
+  "currency": "GBP",
+  "amount": 1050
+}
+```
+
+A payment that the bank **declines** is still `201 Created` with `"status": "Declined"` — the
+resource was created; the bank's decision is data, not an HTTP failure.
 
 ### Rejected requests
 
@@ -154,7 +170,7 @@ attempt frees the key so the merchant can retry.
 
 Limitations (deliberate for this exercise): the store is in-memory, single-node and unbounded.
 
-## Bank failures
+## 🏦 Bank failures
 
 The spec leaves the bank-unavailable case undefined; this gateway's policy:
 
@@ -168,7 +184,7 @@ The spec leaves the bank-unavailable case undefined; this gateway's policy:
 Nothing is persisted on failure: no authorization exists, so no payment resource exists. Retries
 are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
 
-## Sensitive data
+## 🔒 Sensitive data
 
 - The full card number is accepted, forwarded to the bank, and then dropped: only the **last four
   digits** (as a string, preserving leading zeros) are stored and returned.
@@ -177,7 +193,7 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
   the idempotency fingerprint uses last-four + expiry + currency + amount, never the PAN or CVV.
 - Tests assert that card data appears in no response body.
 
-## Observability
+## 📊 Observability
 
 - Every log line follows one shape — `"<Event>: key={}, key={}"` — and carries `traceId`/`spanId`
   (Micrometer Tracing); the same trace id is propagated to the bank call via W3C `traceparent`.
@@ -185,7 +201,7 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
   (HTTP server/client latencies, retry counters, JVM).
 - In this exercise the actuator endpoints are unauthenticated.
 
-## Design notes
+## 🏗️ Design notes
 
 - **Architecture:** controller (HTTP boundary) → service (orchestration) → bank client and
   in-memory repository. DTOs and the domain model are Java records; mapping is two static
@@ -200,8 +216,9 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
 - **Storage:** the in-memory repository the challenge provides, made thread-safe
   (`ConcurrentHashMap`) and storing a domain `Payment` (which holds the bank's authorization code
   without ever exposing it).
-- **Upgrades:** the starter's Spring Boot 3.1 (end-of-life) was upgraded to 3.5; Java stays 17 as
-  the challenge requires.
+- **Errors:** one `@RestControllerAdvice` is the complete catalogue of how the API can fail — one
+  handler per failure mode, each with a test; no Spring default body or stack trace ever reaches
+  a merchant.
 
 ### Assumptions
 
@@ -215,7 +232,24 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
   not guaranteed Luhn-valid.
 - No merchant authentication: the spec has no merchant identity concept.
 
-## Future improvements
+## 🗂️ Project layout
+
+```
+com.checkout.payment.gateway
+├── client/          AcquiringBankClient + bank wire DTOs
+├── configuration/   RestClient, Clock, typed configuration properties
+├── controller/      PaymentGatewayController (HTTP boundary)
+├── domain/          Payment, ProcessedPayment
+├── enums/           PaymentStatus
+├── exception/       typed exceptions + CommonExceptionHandler (exception → HTTP catalogue)
+├── idempotency/     IdempotencyStore
+├── model/           API request/response/error records
+├── repository/      PaymentsRepository (in-memory, thread-safe)
+├── service/         PaymentGatewayService (orchestration)
+└── validation/      PaymentRequestValidator (business rules)
+```
+
+## 🚢 The road to production
 
 Each item was considered and deliberately left out; the table records what it would add and why it
 doesn't belong in this exercise:
