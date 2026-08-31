@@ -155,6 +155,87 @@ class PaymentGatewayIntegrationTest {
   }
 
   @Test
+  void whenSameIdempotencyKeyIsRepeatedThenPaymentIsReplayed() throws Exception {
+    bank.expect(once(), requestTo(BANK_URL))
+        .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));
+
+    String first = mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-1").content(VALID_REQUEST))
+        .andExpect(status().isCreated())
+        .andExpect(header().string("Idempotent-Replayed", "false"))
+        .andReturn().getResponse().getContentAsString();
+
+    String second = mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-1").content(VALID_REQUEST))
+        .andExpect(status().isCreated())
+        .andExpect(header().string("Idempotent-Replayed", "true"))
+        .andReturn().getResponse().getContentAsString();
+
+    assertThat(second).isEqualTo(first);
+    bank.verify();
+  }
+
+  @Test
+  void whenIdempotencyKeyIsReusedWithDifferentRequestThen422IsReturned() throws Exception {
+    bank.expect(once(), requestTo(BANK_URL))
+        .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-2").content(VALID_REQUEST))
+        .andExpect(status().isCreated());
+
+    String differentAmount = VALID_REQUEST.replace("\"amount\":100", "\"amount\":500");
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-2").content(differentAmount))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.message")
+            .value("Idempotency-Key already used with a different request"));
+    bank.verify();
+  }
+
+  @Test
+  void whenIdempotencyKeyIsInvalidThenRequestIsRejectedWithoutBankCall() throws Exception {
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "bad key!").content(VALID_REQUEST))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value("Rejected"))
+        .andExpect(jsonPath("$.errors[0].field").value("Idempotency-Key"));
+    bank.verify();
+  }
+
+  @Test
+  void whenBankFailedThenSameIdempotencyKeyCanBeRetried() throws Exception {
+    bank.expect(times(3), requestTo(BANK_URL)).andRespond(withServiceUnavailable());
+    bank.expect(once(), requestTo(BANK_URL))
+        .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));
+
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-3").content(VALID_REQUEST))
+        .andExpect(status().isServiceUnavailable());
+
+    mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .header("Idempotency-Key", "order-3").content(VALID_REQUEST))
+        .andExpect(status().isCreated())
+        .andExpect(header().string("Idempotent-Replayed", "false"));
+    bank.verify();
+  }
+
+  @Test
+  void whenNoIdempotencyKeyThenEachRequestCreatesANewPayment() throws Exception {
+    bank.expect(times(2), requestTo(BANK_URL))
+        .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));
+
+    String first = mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .content(VALID_REQUEST))
+        .andReturn().getResponse().getContentAsString();
+    String second = mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
+            .content(VALID_REQUEST))
+        .andReturn().getResponse().getContentAsString();
+
+    assertThat(JsonPath.<String>read(first, "$.id")).isNotEqualTo(JsonPath.read(second, "$.id"));
+    bank.verify();
+  }
+
+  @Test
   void whenPaymentIsProcessedThenCardDataIsNeverExposed() throws Exception {
     bank.expect(once(), requestTo(BANK_URL))
         .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));

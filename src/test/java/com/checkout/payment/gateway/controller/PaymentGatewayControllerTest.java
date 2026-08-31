@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.checkout.payment.gateway.domain.Payment;
+import com.checkout.payment.gateway.domain.ProcessedPayment;
 import com.checkout.payment.gateway.enums.PaymentStatus;
 import com.checkout.payment.gateway.exception.PaymentNotFoundException;
 import com.checkout.payment.gateway.exception.PaymentValidationException;
@@ -93,7 +94,8 @@ class PaymentGatewayControllerTest {
     @Test
     void whenRequestIsValidThenPaymentIsCreated() throws Exception {
       Payment payment = payment(PaymentStatus.DECLINED);
-      when(paymentGatewayService.processPayment(any())).thenReturn(payment);
+      when(paymentGatewayService.processPayment(any(), any()))
+          .thenReturn(new ProcessedPayment(payment, false));
 
       mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(validRequest()))
           .andExpect(status().isCreated())
@@ -156,7 +158,8 @@ class PaymentGatewayControllerTest {
     @MethodSource("validBoundaryFields")
     void whenFieldIsOnValidBoundaryThenRequestIsAccepted(String field, Object value)
         throws Exception {
-      when(paymentGatewayService.processPayment(any())).thenReturn(payment(PaymentStatus.AUTHORIZED));
+      when(paymentGatewayService.processPayment(any(), any()))
+          .thenReturn(new ProcessedPayment(payment(PaymentStatus.AUTHORIZED), false));
 
       mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
               .content(requestWith(field, value)))
@@ -191,7 +194,7 @@ class PaymentGatewayControllerTest {
 
     @Test
     void whenBusinessRulesFailThenRequestIsRejected() throws Exception {
-      when(paymentGatewayService.processPayment(any())).thenThrow(new PaymentValidationException(
+      when(paymentGatewayService.processPayment(any(), any())).thenThrow(new PaymentValidationException(
           List.of(new FieldError("currency", "is not supported"),
               new FieldError("expiry_year", "card has expired"))));
 
