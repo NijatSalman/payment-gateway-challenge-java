@@ -205,9 +205,10 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
 
 ### Assumptions
 
-- A rejected request creates no payment and is not retrievable (the spec's response statuses are
-  only `Authorized`/`Declined`).
-- Declined payments are stored and retrievable — the bank was called; reconciliation needs them.
+- **Rejected ≠ Declined.** *Rejected* means the gateway refused an invalid request: the bank was
+  never called, no payment exists, nothing is retrievable (the spec's payment statuses are only
+  `Authorized`/`Declined`). *Declined* means the bank said no to a valid request: a payment is
+  created with status `Declined`, stored, and retrievable — reconciliation needs it.
 - Currency codes are strict uppercase; no more than three currencies are supported, per the spec.
 - `amount` is a 64-bit integer in minor units, in line with real payment APIs.
 - No card-scheme (Luhn) validation: the spec doesn't ask for it and the simulator's test cards are
@@ -216,13 +217,15 @@ are implemented with Resilience4j (`resilience4j.retry.*` in `application.yml`).
 
 ## Future improvements
 
-Deliberately out of scope for this exercise; each is the natural next step for its area:
+Each item was considered and deliberately left out; the table records what it would add and why it
+doesn't belong in this exercise:
 
-| Area | Improvement |
-|---|---|
-| Storage | Replace the in-memory repository with a database; a unique constraint on the idempotency key then also removes the store's single-node/collision limitations |
-| Caching | Once storage is a database, cache payment lookups (`@Cacheable` on GET-by-id — payments are immutable, so entries never go stale) |
-| Resilience | Circuit breaker on the bank client — retry absorbs brief blips; a breaker fails fast during sustained outages instead of hammering a dead bank (same Resilience4j library) |
-| Security | Merchant authentication and per-merchant idempotency-key scoping; actuator behind a management port with auth |
-| Observability | Export metrics to Prometheus/Grafana (`micrometer-registry-prometheus`, one dependency); export traces via OTLP/Zipkin |
-| Audit | Persist failed payment attempts for reconciliation and support |
+| Area | Improvement | Why not now |
+|---|---|---|
+| Storage | Replace the in-memory repository with a database; a unique constraint on the idempotency key then also removes the store's single-node and fingerprint-collision limitations | The spec explicitly allows the provided in-memory test double; a database adds setup burden for reviewers without changing any gateway behaviour |
+| Caching | Cache payment lookups (`@Cacheable` on GET-by-id — payments are immutable, so entries never go stale) | Only meaningful once storage is a database; today the store *is* memory, so a cache would just duplicate it |
+| Resilience | Circuit breaker on the bank client — retry absorbs brief blips; a breaker fails fast during sustained outages instead of hammering a dead bank (same Resilience4j library) | ~8 tuning parameters and stateful test behaviour for a single downstream; bounded retries + short timeouts already contain the failure at this scale |
+| Security | Merchant authentication and per-merchant idempotency-key scoping; actuator behind a management port with auth | The spec has no merchant identity concept; adding auth would invent requirements |
+| Observability | Export metrics to Prometheus/Grafana (`micrometer-registry-prometheus`, one dependency); export traces via OTLP/Zipkin | The app already exposes metrics and creates trace ids; collecting and visualising them is the platform's job, not the application's |
+| Audit | Persist failed payment attempts for reconciliation and support | Correctly, no *payment* exists on failure; an attempts log is a separate concern needing its own storage |
+| Platform | Spring Boot 4.x / a newer Java LTS | Boot was upgraded 3.1→3.5 to leave an end-of-life line with a two-line diff; 4.x is a planned migration (Jackson 3 packages, restructured starters, third-party matrix) with no functional gain here — and the brief fixes JDK 17 |
