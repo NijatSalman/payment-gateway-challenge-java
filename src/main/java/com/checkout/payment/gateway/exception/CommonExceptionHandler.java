@@ -45,6 +45,13 @@ public class CommonExceptionHandler {
     return error(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + ex.getName() + "'");
   }
 
+  @ExceptionHandler(IdempotencyKeyConflictException.class)
+  public ResponseEntity<ErrorResponse> handleIdempotencyKeyConflict(
+      IdempotencyKeyConflictException ex) {
+    LOG.info("Idempotency key conflict: idempotencyKey={}", ex.getIdempotencyKey());
+    return error(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+  }
+
   @ExceptionHandler(BankUnavailableException.class)
   public ResponseEntity<ErrorResponse> handleBankUnavailable(BankUnavailableException ex) {
     LOG.warn("Acquiring bank unavailable: reason={}", ex.getMessage());

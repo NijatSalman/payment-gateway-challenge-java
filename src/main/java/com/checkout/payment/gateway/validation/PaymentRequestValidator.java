@@ -25,6 +25,8 @@ public class PaymentRequestValidator {
     this.paymentProperties = paymentProperties;
   }
 
+  private static final String IDEMPOTENCY_KEY_PATTERN = "^[A-Za-z0-9_-]{1,255}$";
+
   public void validate(PaymentRequest request) {
     List<FieldError> errors = new ArrayList<>();
     if (!paymentProperties.supportedCurrencies().contains(request.currency())) {
@@ -35,6 +37,14 @@ public class PaymentRequestValidator {
     }
     if (!errors.isEmpty()) {
       throw new PaymentValidationException(errors);
+    }
+  }
+
+  /** Keys are only map lookups today, but bounded and restricted so any future store is safe. */
+  public void validateIdempotencyKey(String idempotencyKey) {
+    if (!idempotencyKey.matches(IDEMPOTENCY_KEY_PATTERN)) {
+      throw new PaymentValidationException(List.of(new FieldError("Idempotency-Key",
+          "must contain only letters, digits, '-' and '_' (max 255 characters)")));
     }
   }
 
