@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.TEXT_PLAIN;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -158,8 +160,9 @@ class PaymentGatewayControllerTest {
     @MethodSource("validBoundaryFields")
     void whenFieldIsOnValidBoundaryThenRequestIsAccepted(String field, Object value)
         throws Exception {
+      Payment payment = payment(PaymentStatus.AUTHORIZED);
       when(paymentGatewayService.processPayment(any(), any()))
-          .thenReturn(new ProcessedPayment(payment(PaymentStatus.AUTHORIZED), false));
+          .thenReturn(new ProcessedPayment(payment, false));
 
       mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON)
               .content(requestWith(field, value)))
@@ -194,7 +197,8 @@ class PaymentGatewayControllerTest {
 
     @Test
     void whenBusinessRulesFailThenRequestIsRejected() throws Exception {
-      when(paymentGatewayService.processPayment(any(), any())).thenThrow(new PaymentValidationException(
+      when(paymentGatewayService.processPayment(any(), any()))
+          .thenThrow(new PaymentValidationException(
           List.of(new FieldError("currency", "is not supported"),
               new FieldError("expiry_year", "card has expired"))));
 
@@ -211,9 +215,41 @@ class PaymentGatewayControllerTest {
     @Test
     void whenBodyIsMalformedThen400IsReturned() throws Exception {
       mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content("{\"card_number\":"))
-          .andExpect(status().isBadRequest());
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.message").value("Malformed request body"));
 
       verifyNoInteractions(paymentGatewayService);
+    }
+
+    @Test
+    void whenHttpMethodIsNotSupportedThen405IsReturned() throws Exception {
+      mvc.perform(put(PAYMENTS_URL).contentType(APPLICATION_JSON).content(validRequest()))
+          .andExpect(status().isMethodNotAllowed())
+          .andExpect(jsonPath("$.message").value("Method not allowed"));
+    }
+
+    @Test
+    void whenContentTypeIsNotSupportedThen415IsReturned() throws Exception {
+      mvc.perform(post(PAYMENTS_URL).contentType(TEXT_PLAIN).content(validRequest()))
+          .andExpect(status().isUnsupportedMediaType())
+          .andExpect(jsonPath("$.message").value("Unsupported media type"));
+    }
+
+    @Test
+    void whenUrlIsUnknownThen404IsReturned() throws Exception {
+      mvc.perform(get("/api/v1/unknown"))
+          .andExpect(status().isNotFound())
+          .andExpect(jsonPath("$.message").value("Resource not found"));
+    }
+
+    @Test
+    void whenProcessingFailsUnexpectedlyThen500IsReturned() throws Exception {
+      when(paymentGatewayService.processPayment(any(), any()))
+          .thenThrow(new IllegalStateException("boom"));
+
+      mvc.perform(post(PAYMENTS_URL).contentType(APPLICATION_JSON).content(validRequest()))
+          .andExpect(status().isInternalServerError())
+          .andExpect(jsonPath("$.message").value("Unexpected error"));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.checkout.payment.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -9,8 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -80,9 +83,9 @@ class BankSimulatorE2ETest {
     assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("30");
   }
 
-  private ResponseEntity<Map<String, Object>> getPayment(java.net.URI location) {
-    return restTemplate.exchange(location, org.springframework.http.HttpMethod.GET, null,
-        new org.springframework.core.ParameterizedTypeReference<>() {
+  private ResponseEntity<Map<String, Object>> getPayment(URI location) {
+    return restTemplate.exchange(location, HttpMethod.GET, null,
+        new ParameterizedTypeReference<>() {
         });
   }
 
@@ -92,9 +95,9 @@ class BankSimulatorE2ETest {
     String request = """
         {"card_number":"%s","expiry_month":4,"expiry_year":2030,"currency":"GBP",
          "amount":100,"cvv":"123"}""".formatted(cardNumber);
-    return restTemplate.exchange("/api/v1/payments", org.springframework.http.HttpMethod.POST,
+    return restTemplate.exchange("/api/v1/payments", HttpMethod.POST,
         new HttpEntity<>(request, headers),
-        new org.springframework.core.ParameterizedTypeReference<>() {
+        new ParameterizedTypeReference<>() {
         });
   }
 }
