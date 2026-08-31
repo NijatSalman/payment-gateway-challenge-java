@@ -236,6 +236,13 @@ class PaymentGatewayIntegrationTest {
   }
 
   @Test
+  void whenHealthIsRequestedThenApplicationIsUp() throws Exception {
+    mvc.perform(get("/actuator/health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("UP"));
+  }
+
+  @Test
   void whenPaymentIsProcessedThenCardDataIsNeverExposed() throws Exception {
     bank.expect(once(), requestTo(BANK_URL))
         .andRespond(withSuccess(BANK_AUTHORIZED, APPLICATION_JSON));

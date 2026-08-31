@@ -21,6 +21,12 @@ payment:
 acquiring-bank:
   url: http://localhost:8080/payments
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+
 resilience4j:
   retry:
     instances:
